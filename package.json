@@ -1,0 +1,16 @@
+{
+  "name": "custom-charts",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=client\" \"npm run dev --workspace=server\"",
+    "build": "npm run build --workspace=server && npm run build --workspace=client",
+    "migrate": "npm run migrate --workspace=server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
+  }
+}
