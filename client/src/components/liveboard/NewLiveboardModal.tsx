@@ -38,7 +38,7 @@ export function NewLiveboardModal() {
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Q4 Sales Overview"
+            placeholder="e.g. Sprint Health Q1 2024"
             className="w-full rounded-lg border border-gray-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-200 outline-none px-3 py-2 text-sm transition-all"
           />
         </div>

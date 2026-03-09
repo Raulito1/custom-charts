@@ -10,11 +10,11 @@ import { Button } from '../shared/Button';
 import { Spinner } from '../shared/Spinner';
 
 const SUGGESTIONS = [
-  'Show monthly revenue trend for 2024',
-  'Compare revenue by region this year',
-  'Revenue breakdown by product tier',
-  'Top 10 customers by MRR',
-  'Event count by type last year',
+  'Bug count by team this quarter',
+  'Deployment success rate by project',
+  'Sprint velocity trend for team Alpha',
+  'Open issues by priority',
+  'Average lead time by environment in 2024',
 ];
 
 export function NLQPanel() {
@@ -69,7 +69,7 @@ export function NLQPanel() {
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div>
             <h2 className="font-semibold text-gray-900">Ask a question</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Powered by Claude — queries your SaaS analytics data</p>
+            <p className="text-xs text-gray-400 mt-0.5">Powered by Claude — queries your SDLC engineering metrics</p>
           </div>
           <button onClick={closeNlq} className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100">
             <X size={18} />
@@ -84,7 +84,7 @@ export function NLQPanel() {
               value={question}
               onChange={(e) => setQuestion(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="e.g. Show revenue by region for Q4 2024..."
+              placeholder="e.g. Show bug count by team for Q4 2024..."
               rows={2}
               className="w-full resize-none rounded-xl border border-gray-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-200 outline-none px-4 py-3 pr-14 text-sm text-gray-900 placeholder-gray-400 transition-all"
             />

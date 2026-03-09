@@ -7,18 +7,18 @@ let initialized = false;
 export function initSqlEngine(): void {
   if (initialized) return;
 
-  alasql('CREATE TABLE IF NOT EXISTS sales');
-  alasql.tables.sales.data = MOCK_DATA.sales;
+  alasql('CREATE TABLE IF NOT EXISTS issues');
+  alasql.tables.issues.data = MOCK_DATA.issues;
 
-  alasql('CREATE TABLE IF NOT EXISTS customers');
-  alasql.tables.customers.data = MOCK_DATA.customers;
+  alasql('CREATE TABLE IF NOT EXISTS sprints');
+  alasql.tables.sprints.data = MOCK_DATA.sprints;
 
-  alasql('CREATE TABLE IF NOT EXISTS events');
-  alasql.tables.events.data = MOCK_DATA.events;
+  alasql('CREATE TABLE IF NOT EXISTS deployments');
+  alasql.tables.deployments.data = MOCK_DATA.deployments;
 
   initialized = true;
   console.log(
-    `[SQL] Tables loaded — sales:${MOCK_DATA.sales.length} customers:${MOCK_DATA.customers.length} events:${MOCK_DATA.events.length}`
+    `[SQL] Tables loaded — issues:${MOCK_DATA.issues.length} sprints:${MOCK_DATA.sprints.length} deployments:${MOCK_DATA.deployments.length}`
   );
 }
 

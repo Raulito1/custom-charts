@@ -9,15 +9,15 @@ async function start() {
   try {
     await runMigrations();
     console.log('[DB] Migrations complete');
-    initSqlEngine();
-    console.log('[SQL] Mock SQL engine ready');
-    app.listen(PORT, () => {
-      console.log(`[SERVER] Listening on http://localhost:${PORT}`);
-    });
   } catch (err) {
-    console.error('[FATAL] Startup failed:', err);
-    process.exit(1);
+    console.warn('[DB] PostgreSQL unavailable — liveboard persistence disabled. Mock queries still work.');
   }
+
+  initSqlEngine();
+  console.log('[SQL] Mock SQL engine ready');
+  app.listen(PORT, () => {
+    console.log(`[SERVER] Listening on http://localhost:${PORT}`);
+  });
 }
 
 start();

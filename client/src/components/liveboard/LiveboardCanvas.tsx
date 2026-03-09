@@ -31,7 +31,7 @@ export function LiveboardCanvas() {
         <EmptyState
           icon={<BarChart3 size={48} />}
           title="No liveboard selected"
-          description="Create a liveboard or select one from the sidebar, then start asking questions to populate it with charts."
+          description="Create a liveboard or select one from the sidebar, then ask questions about your SDLC metrics to populate it with charts."
           action={
             <Button variant="primary" icon={<Search size={14} />} onClick={openNlq}>
               Ask a question

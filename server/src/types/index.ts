@@ -7,30 +7,11 @@ export interface NLQRequest {
 
 export interface ClaudeQueryResponse {
   sql: string;
-  chartConfig: ChartConfig;
-  explanation: string;
   queryTitle: string;
-}
-
-export type ChartType = 'bar' | 'column' | 'line' | 'pie' | 'area' | 'scatter';
-
-export interface ChartConfig {
-  chartType: ChartType;
-  title: string;
-  xAxis: AxisConfig;
-  yAxis: AxisConfig;
-  series: SeriesConfig[];
-}
-
-export interface AxisConfig {
-  field: string;
-  label: string;
-  type: 'category' | 'datetime' | 'linear';
-}
-
-export interface SeriesConfig {
-  field: string;
-  name: string;
+  explanation: string;
+  // Full Highcharts options with _dataFormat + _*Field series mapping keys.
+  // Actual series[].data is NOT present — server injects it via injectData().
+  highchartsOptions: Record<string, unknown>;
 }
 
 export interface QueryResult {
@@ -39,9 +20,9 @@ export interface QueryResult {
   sql: string;
   explanation: string;
   queryTitle: string;
-  chartConfig: ChartConfig;
+  highchartsTemplate: Record<string, unknown>; // Claude's template (stored for rerun)
   data: Record<string, unknown>[];
-  highchartsOptions: Record<string, unknown>;
+  highchartsOptions: Record<string, unknown>;  // fully rendered (for display)
   executedAt: string;
   durationMs: number;
 }
@@ -51,7 +32,7 @@ export interface SavedQuery {
   question: string;
   sqlText: string;
   title: string;
-  chartConfig: ChartConfig;
+  highchartsTemplate: Record<string, unknown>;
   createdAt: string;
   lastRunAt: string;
 }

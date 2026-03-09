@@ -11,7 +11,7 @@ export async function saveQuery(result: QueryResult): Promise<void> {
       result.question,
       result.sql,
       result.queryTitle,
-      JSON.stringify(result.chartConfig),
+      JSON.stringify(result.highchartsTemplate),
     ]
   );
 }
@@ -46,7 +46,7 @@ function toSavedQuery(row: Record<string, unknown>): SavedQuery {
     question: String(row.question),
     sqlText: String(row.sql_text),
     title: String(row.title),
-    chartConfig: typeof row.chart_config === 'string'
+    highchartsTemplate: typeof row.chart_config === 'string'
       ? JSON.parse(row.chart_config)
       : row.chart_config,
     createdAt: String(row.created_at),
