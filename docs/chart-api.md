@@ -227,6 +227,274 @@ You can always specify the chart type explicitly in your question, or leave it o
 
 ---
 
+## How Data Flows (End-to-End)
+
+The LLM is **never involved in data retrieval**. It only produces the SQL query and a template describing how to map columns to chart roles. Your server handles everything else.
+
+```
+User asks a question
+        ↓
+Claude returns SQL + Highcharts template (_*Field placeholders, no data arrays)
+        ↓
+Your server runs the SQL → gets raw rows from DB
+        ↓
+injectData() reads _*Field keys → builds correct data arrays for the chart type
+        ↓
+Client receives final Highcharts options → renders chart
+```
+
+Claude never sees the query results. The `_*Field` keys are just column name hints — they tell `injectData()` which SQL alias maps to which chart role (x-axis, y-axis, bubble size, etc.).
+
+---
+
+## Why `_dataFormat` Exists
+
+`_dataFormat` is **not** the chart type — it describes the **shape of the data array** that Highcharts expects for a given chart type. Different chart types require different array structures, so `injectData()` needs to know which format to build.
+
+| `_dataFormat` | Array built by `injectData()` | Used by chart types |
+|---|---|---|
+| `category_value` | `data: [142, 118, 97]` + `xAxis.categories` | column, bar, line, area, spline |
+| `name_y` | `data: [{ name: "Alpha", y: 142 }]` | pie, donut |
+| `xy` | `data: [[3, 142], [5, 118]]` | scatter |
+| `xyz` | `data: [[3, 142, 8], [5, 118, 3]]` | bubble |
+| `boxplot` | `data: [[10, 25, 40, 60, 90]]` | boxplot |
+
+Chart type and data format are set **independently**. Claude sets `chart.type` for Highcharts and `_dataFormat` so `injectData()` knows what array shape to produce.
+
+---
+
+## Full Worked Examples
+
+### Example 1 — Column Chart: Bugs by Team
+
+**Prompt:** `"show me bugs by team"`
+
+**Claude returns (template):**
+```json
+{
+  "sql": "SELECT team, COUNT(*) AS bug_count FROM issues WHERE type = 'bug' GROUP BY team ORDER BY bug_count DESC",
+  "queryTitle": "Bugs by Team",
+  "explanation": "Total bugs filed per engineering team.",
+  "highchartsOptions": {
+    "chart": { "type": "column" },
+    "title": { "text": "Bug Count by Team" },
+    "xAxis": { "title": { "text": "Team" } },
+    "yAxis": { "title": { "text": "Bug Count" } },
+    "legend": { "enabled": false },
+    "series": [
+      {
+        "name": "Bugs",
+        "type": "column",
+        "_dataFormat": "category_value",
+        "_categoryField": "team",
+        "_valueField": "bug_count"
+      }
+    ]
+  }
+}
+```
+
+**SQL result rows:**
+```json
+[
+  { "team": "Alpha",    "bug_count": 142 },
+  { "team": "Beta",     "bug_count": 118 },
+  { "team": "Gamma",    "bug_count": 135 },
+  { "team": "Platform", "bug_count":  97 },
+  { "team": "Infra",    "bug_count": 109 }
+]
+```
+
+**Final Highcharts options (after `injectData()`):**
+```json
+{
+  "credits": { "enabled": false },
+  "chart": { "type": "column" },
+  "title": { "text": "Bug Count by Team" },
+  "xAxis": {
+    "title": { "text": "Team" },
+    "categories": ["Alpha", "Beta", "Gamma", "Platform", "Infra"]
+  },
+  "yAxis": { "title": { "text": "Bug Count" } },
+  "legend": { "enabled": false },
+  "series": [
+    { "name": "Bugs", "type": "column", "data": [142, 118, 135, 97, 109] }
+  ]
+}
+```
+
+---
+
+### Example 2 — Pie Chart: Issues by Priority
+
+**Prompt:** `"show issue distribution by priority as a pie chart"`
+
+**Claude returns (template):**
+```json
+{
+  "sql": "SELECT priority, COUNT(*) AS total FROM issues GROUP BY priority ORDER BY total DESC",
+  "queryTitle": "Issues by Priority",
+  "explanation": "Distribution of all issues across priority levels.",
+  "highchartsOptions": {
+    "chart": { "type": "pie" },
+    "title": { "text": "Issues by Priority" },
+    "legend": { "enabled": true },
+    "series": [
+      {
+        "name": "Issues",
+        "type": "pie",
+        "_dataFormat": "name_y",
+        "_nameField": "priority",
+        "_valueField": "total"
+      }
+    ]
+  }
+}
+```
+
+**SQL result rows:**
+```json
+[
+  { "priority": "medium",   "total": 612 },
+  { "priority": "high",     "total": 489 },
+  { "priority": "low",      "total": 341 },
+  { "priority": "critical", "total": 158 }
+]
+```
+
+**Final Highcharts options (after `injectData()`):**
+```json
+{
+  "chart": { "type": "pie" },
+  "title": { "text": "Issues by Priority" },
+  "series": [
+    {
+      "name": "Issues",
+      "type": "pie",
+      "data": [
+        { "name": "medium",   "y": 612 },
+        { "name": "high",     "y": 489 },
+        { "name": "low",      "y": 341 },
+        { "name": "critical", "y": 158 }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### Example 3 — Scatter Chart: Deployment Duration vs Lead Time
+
+**Prompt:** `"scatter plot of deployment duration vs lead time"`
+
+**Claude returns (template):**
+```json
+{
+  "sql": "SELECT duration_min, lead_time_days FROM deployments WHERE status = 'success' LIMIT 100",
+  "queryTitle": "Duration vs Lead Time",
+  "explanation": "Correlation between pipeline duration and lead time for successful deployments.",
+  "highchartsOptions": {
+    "chart": { "type": "scatter" },
+    "title": { "text": "Deployment Duration vs Lead Time" },
+    "xAxis": { "title": { "text": "Duration (min)" } },
+    "yAxis": { "title": { "text": "Lead Time (days)" } },
+    "legend": { "enabled": false },
+    "series": [
+      {
+        "name": "Deployments",
+        "type": "scatter",
+        "_dataFormat": "xy",
+        "_xField": "duration_min",
+        "_yField": "lead_time_days"
+      }
+    ]
+  }
+}
+```
+
+**SQL result rows (sample):**
+```json
+[
+  { "duration_min": 12, "lead_time_days": 3 },
+  { "duration_min": 45, "lead_time_days": 8 },
+  { "duration_min": 28, "lead_time_days": 5 }
+]
+```
+
+**Final Highcharts options (after `injectData()`):**
+```json
+{
+  "chart": { "type": "scatter" },
+  "title": { "text": "Deployment Duration vs Lead Time" },
+  "series": [
+    {
+      "name": "Deployments",
+      "type": "scatter",
+      "data": [[12, 3], [45, 8], [28, 5]]
+    }
+  ]
+}
+```
+
+---
+
+### Example 4 — Multi-Series Line: Bugs Opened vs Closed per Sprint
+
+**Prompt:** `"bugs opened vs closed per sprint as two lines"`
+
+**Claude returns (template):**
+```json
+{
+  "sql": "SELECT id AS sprint_id, bugs_opened, bugs_closed FROM sprints WHERE team = 'Alpha' ORDER BY start_date",
+  "queryTitle": "Bug Trend Team Alpha",
+  "explanation": "Bugs opened vs closed each sprint for Team Alpha.",
+  "highchartsOptions": {
+    "chart": { "type": "line" },
+    "title": { "text": "Bugs Opened vs Closed — Team Alpha" },
+    "xAxis": { "title": { "text": "Sprint" } },
+    "yAxis": { "title": { "text": "Bug Count" } },
+    "legend": { "enabled": true },
+    "series": [
+      {
+        "name": "Bugs Opened",
+        "type": "line",
+        "_dataFormat": "category_value",
+        "_categoryField": "sprint_id",
+        "_valueField": "bugs_opened"
+      },
+      {
+        "name": "Bugs Closed",
+        "type": "line",
+        "_dataFormat": "category_value",
+        "_categoryField": "sprint_id",
+        "_valueField": "bugs_closed"
+      }
+    ]
+  }
+}
+```
+
+**Final Highcharts options (after `injectData()`):**
+```json
+{
+  "chart": { "type": "line" },
+  "title": { "text": "Bugs Opened vs Closed — Team Alpha" },
+  "xAxis": {
+    "title": { "text": "Sprint" },
+    "categories": ["SPR-001", "SPR-006", "SPR-011", "SPR-016", "SPR-021"]
+  },
+  "yAxis": { "title": { "text": "Bug Count" } },
+  "legend": { "enabled": true },
+  "series": [
+    { "name": "Bugs Opened", "type": "line", "data": [8, 12, 6, 9, 11] },
+    { "name": "Bugs Closed", "type": "line", "data": [5, 10, 8, 7, 13] }
+  ]
+}
+```
+
+---
+
 ## Key Files
 
 | File | Role |
