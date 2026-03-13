@@ -4,6 +4,7 @@ import type { Layout } from 'react-grid-layout';
 import { useLiveboardStore } from '../../store/liveboardStore';
 import { useUiStore } from '../../store/uiStore';
 import { ChartCard } from '../chart/ChartCard';
+import { FilterBar } from './FilterBar';
 import { EmptyState } from '../shared/EmptyState';
 import { Button } from '../shared/Button';
 import { BarChart3, Search } from 'lucide-react';
@@ -14,7 +15,7 @@ const COLS = { lg: 12, md: 10, sm: 6, xs: 4 };
 const ResponsiveGrid = WidthProvider(Responsive);
 
 export function LiveboardCanvas() {
-  const { activeLiveboard, updateLayout, saveLayout } = useLiveboardStore();
+  const { activeLiveboard, updateLayout, saveLayout, filteredChartData } = useLiveboardStore();
   const { openNlq } = useUiStore();
 
   const handleLayoutChange = useCallback(
@@ -72,7 +73,9 @@ export function LiveboardCanvas() {
   };
 
   return (
-    <div className="flex-1 overflow-auto bg-gray-50 p-4">
+    <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
+      <FilterBar />
+      <div className="flex-1 overflow-auto p-4">
       <ResponsiveGrid
         className="layout"
         layouts={layouts}
@@ -90,11 +93,16 @@ export function LiveboardCanvas() {
           const pixelHeight = (layout?.h ?? 4) * (ROW_HEIGHT + 12);
           return (
             <div key={chart.id}>
-              <ChartCard chart={chart} height={pixelHeight} />
+              <ChartCard
+                chart={chart}
+                height={pixelHeight}
+                filteredData={filteredChartData[chart.id]}
+              />
             </div>
           );
         })}
       </ResponsiveGrid>
+      </div>
     </div>
   );
 }

@@ -2,8 +2,18 @@ import { Request, Response, NextFunction } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { callClaude } from '../services/claude.service';
 import { executeSql } from '../services/sqlEngine.service';
+import { isSnowflakeConfigured, executeSnowflakeQuery } from '../services/snowflake.service';
 import { saveQuery, listQueries, getQueryById, deleteQueryById } from '../services/query.service';
 import type { QueryResult } from '../types';
+
+/** Routes SQL execution to Snowflake when configured, otherwise falls back to alasql. */
+async function runQuery(sql: string): Promise<Record<string, unknown>[]> {
+  if (isSnowflakeConfigured()) {
+    const rows = await executeSnowflakeQuery(sql);
+    return rows.slice(0, 500);
+  }
+  return executeSql(sql);
+}
 
 /**
  * Injects SQL result rows into a Highcharts options template produced by Claude.
@@ -106,7 +116,7 @@ export async function executeQuery(req: Request, res: Response, next: NextFuncti
 
     const start = Date.now();
     const claudeResult = await callClaude(question.trim());
-    const data = executeSql(claudeResult.sql);
+    const data = await runQuery(claudeResult.sql);
     const highchartsOptions = injectData(claudeResult.highchartsOptions, data);
     const durationMs = Date.now() - start;
 
@@ -152,7 +162,7 @@ export async function rerunQuery(req: Request, res: Response, next: NextFunction
     }
 
     const start = Date.now();
-    const data = executeSql(saved.sqlText);
+    const data = await runQuery(saved.sqlText);
     const highchartsOptions = injectData(saved.highchartsTemplate, data);
     const durationMs = Date.now() - start;
 
@@ -179,6 +189,75 @@ export async function deleteQuery(req: Request, res: Response, next: NextFunctio
   try {
     await deleteQueryById(req.params.id);
     res.json({ success: true, data: null });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Generic filter state — any column name mapped to selected values. */
+interface FilterState {
+  columns: Record<string, string[]>;
+  dateFrom: string | null;
+  dateTo: string | null;
+  dateColumn: string | null;
+}
+
+/**
+ * Injects filter conditions into a SQL string. Fully generic — works with any
+ * table/column names, for both alasql and Snowflake dialects.
+ */
+function applyFiltersToSql(sql: string, filters: FilterState): string {
+  const conditions: string[] = [];
+
+  for (const [col, vals] of Object.entries(filters.columns ?? {})) {
+    if (vals.length > 0) {
+      const escaped = vals.map((v) => `'${v.replace(/'/g, "''")}'`).join(', ');
+      conditions.push(`${col} IN (${escaped})`);
+    }
+  }
+
+  if (filters.dateColumn) {
+    if (filters.dateFrom) conditions.push(`${filters.dateColumn} >= '${filters.dateFrom}'`);
+    if (filters.dateTo) conditions.push(`${filters.dateColumn} <= '${filters.dateTo}'`);
+  }
+
+  if (conditions.length === 0) return sql;
+
+  const conditionStr = conditions.join(' AND ');
+  const hasWhere = /\bWHERE\b/.test(sql.toUpperCase());
+  const groupByMatch = sql.match(/\b(GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT)\b/i);
+
+  if (hasWhere) {
+    if (groupByMatch?.index != null) {
+      return sql.slice(0, groupByMatch.index) + `AND ${conditionStr} ` + sql.slice(groupByMatch.index);
+    }
+    return `${sql} AND ${conditionStr}`;
+  } else {
+    if (groupByMatch?.index != null) {
+      return sql.slice(0, groupByMatch.index) + `WHERE ${conditionStr} ` + sql.slice(groupByMatch.index);
+    }
+    return `${sql} WHERE ${conditionStr}`;
+  }
+}
+
+export async function runFiltered(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { sql, highchartsTemplate, filters } = req.body as {
+      sql: string;
+      highchartsTemplate: Record<string, unknown>;
+      filters: FilterState;
+    };
+
+    if (!sql || !highchartsTemplate) {
+      res.status(400).json({ success: false, error: 'sql and highchartsTemplate are required' });
+      return;
+    }
+
+    const filteredSql = applyFiltersToSql(sql, filters ?? {});
+    const data = await runQuery(filteredSql);
+    const highchartsOptions = injectData(highchartsTemplate, data);
+
+    res.json({ success: true, data: { data, highchartsOptions } });
   } catch (err) {
     next(err);
   }

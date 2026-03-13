@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { QueryResult, SavedQuery } from '../types';
+import type { FilterState, QueryResult, SavedQuery } from '../types';
 
 export const queryApi = {
   execute: async (question: string): Promise<QueryResult> => {
@@ -19,5 +19,17 @@ export const queryApi = {
 
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/queries/${id}`);
+  },
+
+  runFiltered: async (
+    sql: string,
+    highchartsTemplate: Record<string, unknown>,
+    filters: FilterState
+  ): Promise<{ data: Record<string, unknown>[]; highchartsOptions: Record<string, unknown> }> => {
+    const res = await apiClient.post<{
+      success: true;
+      data: { data: Record<string, unknown>[]; highchartsOptions: Record<string, unknown> };
+    }>('/query/run-filtered', { sql, highchartsTemplate, filters });
+    return res.data.data;
   },
 };

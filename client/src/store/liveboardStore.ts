@@ -1,7 +1,14 @@
 import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import { liveboardApi } from '../api/liveboardApi';
-import type { Liveboard, LiveboardSummary, QueryResult } from '../types';
+import { queryApi } from '../api/queryApi';
+import type { FilterState, Liveboard, LiveboardSummary, QueryResult } from '../types';
+import { EMPTY_FILTERS } from '../types';
+
+type FilteredChartData = {
+  data: Record<string, unknown>[];
+  highchartsOptions: Record<string, unknown>;
+};
 
 interface LiveboardState {
   summaries: LiveboardSummary[];
@@ -9,6 +16,10 @@ interface LiveboardState {
   isLoading: boolean;
   isDirty: boolean;
   error: string | null;
+
+  activeFilters: FilterState;
+  filteredChartData: Record<string, FilteredChartData>;
+  isFilterLoading: boolean;
 
   loadSummaries: () => Promise<void>;
   loadLiveboard: (id: string) => Promise<void>;
@@ -20,6 +31,8 @@ interface LiveboardState {
   updateLayout: (layouts: { i: string; x: number; y: number; w: number; h: number }[]) => void;
   saveLayout: () => Promise<void>;
   setActiveLiveboard: (lb: Liveboard | null) => void;
+  setFilters: (filters: FilterState) => Promise<void>;
+  clearFilters: () => void;
 }
 
 export const useLiveboardStore = create<LiveboardState>()(
@@ -30,6 +43,10 @@ export const useLiveboardStore = create<LiveboardState>()(
       isLoading: false,
       isDirty: false,
       error: null,
+
+      activeFilters: EMPTY_FILTERS,
+      filteredChartData: {},
+      isFilterLoading: false,
 
       loadSummaries: async () => {
         try {
@@ -131,6 +148,31 @@ export const useLiveboardStore = create<LiveboardState>()(
       },
 
       setActiveLiveboard: (lb) => set({ activeLiveboard: lb, isDirty: false }),
+
+      setFilters: async (filters) => {
+        const charts = get().activeLiveboard?.charts ?? [];
+        set({ activeFilters: filters, isFilterLoading: true });
+
+        const results = await Promise.allSettled(
+          charts.map(async (chart) => {
+            const template = chart.queryResult.highchartsTemplate;
+            if (!template) return { id: chart.id, result: null };
+            const result = await queryApi.runFiltered(chart.queryResult.sql, template, filters);
+            return { id: chart.id, result };
+          })
+        );
+
+        const filteredChartData: Record<string, FilteredChartData> = {};
+        for (const settled of results) {
+          if (settled.status === 'fulfilled' && settled.value.result) {
+            filteredChartData[settled.value.id] = settled.value.result;
+          }
+        }
+
+        set({ filteredChartData, isFilterLoading: false });
+      },
+
+      clearFilters: () => set({ activeFilters: EMPTY_FILTERS, filteredChartData: {} }),
     }),
     { name: 'liveboard-store' }
   )

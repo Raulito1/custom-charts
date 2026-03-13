@@ -1,21 +1,33 @@
 import { Router } from 'express';
-import { MOCK_SCHEMA } from '../mock/schema';
-import { MOCK_DATA } from '../mock/data';
+import { getSchema, getFilterSuggestions, getDateColumns } from '../services/schema.service';
+import { isSnowflakeConfigured } from '../services/snowflake.service';
 
 const router = Router();
 
-router.get('/', (_req, res) => {
-  res.json({
-    success: true,
-    data: {
-      tables: MOCK_SCHEMA,
-      rowCounts: {
-        sales: MOCK_DATA.sales.length,
-        customers: MOCK_DATA.customers.length,
-        events: MOCK_DATA.events.length,
+/** GET /api/schema — full table + column metadata */
+router.get('/', async (_req, res, next) => {
+  try {
+    const tables = await getSchema();
+    res.json({
+      success: true,
+      data: {
+        dialect: isSnowflakeConfigured() ? 'snowflake' : 'alasql',
+        tables,
       },
-    },
-  });
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** GET /api/schema/filter-suggestions — low-cardinality columns with distinct values */
+router.get('/filter-suggestions', async (_req, res, next) => {
+  try {
+    const [filterColumns, dateColumns] = await Promise.all([getFilterSuggestions(), getDateColumns()]);
+    res.json({ success: true, data: { filterColumns, dateColumns } });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;

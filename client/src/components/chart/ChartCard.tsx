@@ -6,12 +6,19 @@ import { ViewToggle, type ViewMode } from '../shared/ViewToggle';
 import { useLiveboardStore } from '../../store/liveboardStore';
 import type { LiveboardChart } from '../../types';
 
+interface FilteredChartData {
+  data: Record<string, unknown>[];
+  highchartsOptions: Record<string, unknown>;
+}
+
 interface ChartCardProps {
   chart: LiveboardChart;
   height: number;
+  filteredData?: FilteredChartData;
 }
 
-export function ChartCard({ chart, height }: ChartCardProps) {
+export function ChartCard({ chart, height, filteredData }: ChartCardProps) {
+  const displayData = filteredData ?? { data: chart.queryResult.data, highchartsOptions: chart.queryResult.highchartsOptions };
   const { removeChart } = useLiveboardStore();
   const [showSql, setShowSql] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('chart');
@@ -58,10 +65,10 @@ export function ChartCard({ chart, height }: ChartCardProps) {
       <div className="flex-1 min-h-0 overflow-hidden">
         {viewMode === 'chart' ? (
           <div className="p-2 h-full">
-            <ChartRenderer options={chart.queryResult.highchartsOptions} height={contentHeight} />
+            <ChartRenderer options={displayData.highchartsOptions} height={contentHeight} />
           </div>
         ) : (
-          <TableRenderer data={chart.queryResult.data} height={contentHeight} />
+          <TableRenderer data={displayData.data} height={contentHeight} />
         )}
       </div>
 

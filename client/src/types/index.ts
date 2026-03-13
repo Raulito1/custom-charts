@@ -19,6 +19,44 @@ export interface ChartConfig {
   series: SeriesConfig[];
 }
 
+/** Generic filter — any column name mapped to selected string values. */
+export interface FilterState {
+  columns: Record<string, string[]>;
+  dateFrom: string | null;
+  dateTo: string | null;
+  dateColumn: string | null;
+}
+
+/** A filterable column discovered from the schema, with its distinct values. */
+export interface FilterColumn {
+  table: string;
+  column: string;
+  label: string;
+  options: string[];
+}
+
+/** A date column available for date-range filtering. */
+export interface DateColumn {
+  table: string;
+  column: string;
+  label: string;
+}
+
+export const EMPTY_FILTERS: FilterState = {
+  columns: {},
+  dateFrom: null,
+  dateTo: null,
+  dateColumn: null,
+};
+
+export function hasActiveFilters(f: FilterState): boolean {
+  return (
+    Object.values(f.columns).some((v) => v.length > 0) ||
+    f.dateFrom !== null ||
+    f.dateTo !== null
+  );
+}
+
 export interface QueryResult {
   queryId: string;
   question: string;
@@ -26,6 +64,7 @@ export interface QueryResult {
   explanation: string;
   queryTitle: string;
   chartConfig: ChartConfig;
+  highchartsTemplate?: Record<string, unknown>;
   data: Record<string, unknown>[];
   highchartsOptions: Record<string, unknown>;
   executedAt: string;
